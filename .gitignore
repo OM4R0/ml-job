@@ -226,3 +226,5 @@ data/*
 !data/.gitkeep
 # Personal interview preparation
 prep/
+# Report is submitted separately, not published in the repo
+report/*.pdf

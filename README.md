@@ -6,12 +6,13 @@ Predicts the posted rate (total price in USD) of a truckload shipment from its l
 
 Validated with 3 expanding-window time folds on `train_test.csv` (each fold is tested on the 2 months after its training data, which mimics predicting Nov-Dec after Oct). Errors are on held-out months the model never saw.
 
-| Model | MAE, normal loads | MAPE, normal loads | MAE, all loads | MAPE, all loads |
-|---|---|---|---|---|
-| Baseline (median rate per mile by distance band and equipment) | $106.6 (+-33.5) | 4.7% | $159.8 | 7.0% |
-| **HistGradientBoosting (final)** | **$60.5 (+-2.1)** | **2.5%** | **$114.3** | **4.9%** |
+| Model | MAE, normal loads | MAPE, normal loads | Within 5%, normal loads | MAE, all loads | MAPE, all loads |
+|---|---|---|---|---|---|
+| Baseline (median rate per mile by distance band and equipment) | $106.6 (+-33.5) | 4.7% | 60.0% | $159.8 | 7.0% |
+| **HistGradientBoosting (final)** | **$60.5 (+-2.1)** | **2.5%** | **89.1%** | **$114.3** | **4.9%** |
 
 Per fold, normal loads: May-Jun $62.8, Jul-Aug $58.7, Sep-Oct $60.1. A typical load costs about $2,380.
+"Within 5%" is the share of loads whose predicted price is within 5% of the true price (87.9% on all loads).
 "Normal loads" excludes the 1.4% of rows whose price is far from normal for their distance (see Data quality). They are kept in the "all loads" columns because the hidden test set probably contains similar rows.
 
 ## How to run
@@ -59,8 +60,6 @@ python src/experiments.py   # feature and model comparisons behind the decisions
 python src/tune.py          # hyperparameter grid search, 81 settings (several minutes)
 ```
 
-`experiments.py` includes XGBoost only if it is installed (`pip install xgboost`).
-
 ## Project structure
 
 ```
@@ -97,7 +96,7 @@ Distance, weight, equipment, pickup and delivery coordinates (8 validation citie
 
 ### Model
 
-Compared on the same folds (MAE on normal loads): decision tree $80, random forest $65, linear regression $64 (unstable across folds), LightGBM $64, XGBoost $64, HistGradientBoosting $62. HistGradientBoosting was the most accurate and most stable and needs only scikit-learn. A grid search over 81 settings (`src/tune.py`) improved it to $60.5; every setting landed between $60.5 and $64.0, and the best ones used more regularization.
+Compared on the same folds (MAE on normal loads): decision tree $80, random forest $65, linear regression $64 (unstable across folds), LightGBM $64, XGBoost $64, HistGradientBoosting $62 (share of loads within 5% of the true price: 77% to 88.5%, highest for HistGradientBoosting). HistGradientBoosting was the most accurate and most stable and needs only scikit-learn. A grid search over 81 settings (`src/tune.py`) improved it to $60.5; every setting landed between $60.5 and $64.0, and the best ones used more regularization.
 
 Feature importance (permutation): distance 46%, equipment 24%, weight 9%, market_index 7%, month 6%, coordinates 8%.
 

@@ -2,7 +2,8 @@
 
 1. Cross-validation on 3 time-based folds (Decisions log #10): a simple
    baseline vs the gradient boosting model (Decisions log #12), error on all
-   test rows and on normal rows.
+   test rows and on normal rows, plus the share of loads predicted within 5%
+   of the true price.
 2. Retrain the model on all Jan-Oct data.
 3. Write validation_predictions.csv and fill data/december_chart_inputs.csv,
    ready for score.py (a copy of the December predictions goes to outputs/).
@@ -39,6 +40,7 @@ MODEL_PARAMS = {
     "early_stopping": True,
     "random_state": 0,
 }
+WITHIN_TOLERANCE = 0.05  # a prediction counts as close if it is within 5% of the true price
 
 
 class BaselineModel:
@@ -82,6 +84,11 @@ def error_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, float]
     return float(abs_error.mean()), float((abs_error / y_true).mean() * 100)
 
 
+def share_within(y_true: np.ndarray, y_pred: np.ndarray, tolerance: float = WITHIN_TOLERANCE) -> float:
+    """Percent of loads whose prediction is within `tolerance` (5%) of the true price."""
+    return float((np.abs(y_true - y_pred) / y_true <= tolerance).mean() * 100)
+
+
 def cross_validate(train: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for label, start, end in FOLDS:
@@ -102,6 +109,8 @@ def cross_validate(train: pd.DataFrame) -> pd.DataFrame:
                 "test_period": label, "model": name, "mean_price_normal": float(y_true[normal].mean()),
                 "mae_all": mae_all, "mape_all": mape_all,
                 "mae_normal": mae_normal, "mape_normal": mape_normal,
+                "within5_all": share_within(y_true, y_pred),
+                "within5_normal": share_within(y_true[normal], y_pred[normal]),
             })
     return pd.DataFrame(rows)
 
@@ -113,9 +122,10 @@ def main() -> None:
     # 1. Cross-validation
     cv = cross_validate(train)
     cv.to_csv(OUTPUT_DIR / "cv_results.csv", index=False)
-    print("Cross-validation (MAE in $, MAPE in %):")
+    print("Cross-validation (MAE in $; MAPE and share within 5% in %):")
     print(cv.round(2).to_string(index=False))
-    summary = cv.groupby("model")[["mae_all", "mape_all", "mae_normal", "mape_normal"]].agg(["mean", "std"]).round(2)
+    metrics = ["mae_all", "mape_all", "mae_normal", "mape_normal", "within5_all", "within5_normal"]
+    summary = cv.groupby("model")[metrics].agg(["mean", "std"]).round(2)
     print("\nMean and spread over the 3 folds:")
     print(summary.to_string())
 

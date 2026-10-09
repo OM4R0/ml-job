@@ -4,7 +4,8 @@ Part 1: ways to give the model time information (Decisions log #11).
 Part 2: model families on the final feature set.
 Both use the 3 time-based folds (Decisions log #10) and report the mean
 absolute error (MAE) in dollars per load, on all test rows and on normal
-rows only (Decisions log #7).
+rows only (Decisions log #7). Part 2 also reports the share of normal loads
+predicted within 5% of the true price.
 
 Run from the project root:  python src/experiments.py
 """
@@ -127,7 +128,7 @@ if xgb is not None:
     )
 
 
-def run_model_fold(train: pd.DataFrame, start: str, end: str, make_model, transform) -> tuple[float, float]:
+def run_model_fold(train: pd.DataFrame, start: str, end: str, make_model, transform) -> tuple[float, float, float]:
     train_part = train[train["date"] < start]
     test_part = train[(train["date"] >= start) & (train["date"] < end)]
     prep = Preparer().fit(train_part)
@@ -138,12 +139,14 @@ def run_model_fold(train: pd.DataFrame, start: str, end: str, make_model, transf
     predicted = np.exp(model.predict(transform(features.build_features(test_rows)))) * test_rows["distance"]
     error = (test_rows["posted_rate"] - predicted).abs()
     normal = ~prep.outlier_mask(test_part)
-    return float(error.mean()), float(error[normal].mean())
+    within5 = (error[normal] / test_rows["posted_rate"][normal] <= 0.05).mean() * 100
+    return float(error.mean()), float(error[normal].mean()), float(within5)
 
 
-def print_header(title: str) -> None:
+def print_header(title: str, with_within5: bool = False) -> None:
     print(f"\n{title}")
-    print(f"{'':<34} {'MAE all':>8} {'MAE normal':>11}   normal MAE per fold")
+    extra = f" {'Within 5%':>10}" if with_within5 else ""
+    print(f"{'':<34} {'MAE all':>8} {'MAE normal':>11}{extra}   normal MAE per fold")
 
 
 def main() -> None:
@@ -155,11 +158,11 @@ def main() -> None:
         folds = ", ".join(f"{v:.0f}" for v in results[:, 1])
         print(f"{name:<34} {results[:, 0].mean():8.1f} {results[:, 1].mean():11.1f}   [{folds}]")
 
-    print_header("Part 2: model families (final features, may take a minute)")
+    print_header("Part 2: model families (final features, may take a minute)", with_within5=True)
     for name, (make_model, transform) in MODELS.items():
         results = np.array([run_model_fold(train, s, e, make_model, transform) for s, e in FOLDS])
         folds = ", ".join(f"{v:.0f}" for v in results[:, 1])
-        print(f"{name:<34} {results[:, 0].mean():8.1f} {results[:, 1].mean():11.1f}   [{folds}]")
+        print(f"{name:<34} {results[:, 0].mean():8.1f} {results[:, 1].mean():11.1f} {results[:, 2].mean():9.1f}%   [{folds}]")
 
 
 if __name__ == "__main__":

@@ -218,3 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---- Project-specific ----
+# Assessment material and data belong to Spotter: not published in this repo.
+freight-rate-ml-assessment.pdf
+data/*
+!data/.gitkeep
+# Personal interview preparation
+prep/
